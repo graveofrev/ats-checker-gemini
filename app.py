@@ -1,3 +1,4 @@
+import datetime
 import os
 
 from dotenv import load_dotenv
@@ -10,6 +11,10 @@ from google.genai import types
 
 ## Part 1: Base configuration
 DEFAULT_MODEL = "gemini-2.5-flash"
+MAX_PDF_MB = 5
+# Limits keep a public demo from using up the owner's API quota
+MAX_RUNS_PER_SESSION = 10
+MAX_RUNS_PER_DAY = 100
 
 
 def get_setting(name, default=None):
@@ -25,6 +30,29 @@ def get_setting(name, default=None):
 @st.cache_resource
 def get_client(api_key):
     return genai.Client(api_key=api_key)
+
+
+@st.cache_resource
+def get_daily_usage():
+    # Shared by every visitor of this app instance
+    return {"date": None, "runs": 0}
+
+
+def check_and_count_run():
+    today = datetime.date.today()
+    usage = get_daily_usage()
+    if usage["date"] != today:
+        usage["date"], usage["runs"] = today, 0
+    session_runs = st.session_state.get("runs", 0)
+
+    if session_runs >= int(get_setting("MAX_RUNS_PER_SESSION", MAX_RUNS_PER_SESSION)):
+        return "You've reached the limit for this session. Please come back later."
+    if usage["runs"] >= int(get_setting("MAX_RUNS_PER_DAY", MAX_RUNS_PER_DAY)):
+        return "The demo has reached its daily limit. Please try again tomorrow."
+
+    st.session_state["runs"] = session_runs + 1
+    usage["runs"] += 1
+    return None
 
 
 def get_gemini_response(prompt, pdf_bytes, job_description):
@@ -96,6 +124,10 @@ if selected_prompt:
         st.write("Please upload the resume.")
     elif not input_text.strip():
         st.write("Please paste the job description.")
+    elif uploaded_file.size > MAX_PDF_MB * 1024 * 1024:
+        st.write(f"Please upload a PDF smaller than {MAX_PDF_MB} MB.")
+    elif limit_message := check_and_count_run():
+        st.write(limit_message)
     else:
         with st.spinner("Reading your resume..."):
             response = get_gemini_response(selected_prompt, uploaded_file.getvalue(), input_text)

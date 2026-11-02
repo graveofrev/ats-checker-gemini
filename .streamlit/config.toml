@@ -1,0 +1,3 @@
+[server]
+# Matches MAX_FILE_MB in app.py, so oversized uploads are rejected before they are read
+maxUploadSize = 5

@@ -1,6 +1,8 @@
 # ats-checker-gemini
 A handy app I created that uses Gemini to help create better CVs.
 
+Upload a resume as PDF, Word (.docx) or text, paste a job description, and pick any Gemini model your API key can use from the sidebar.
+
 ## Run it locally
 
 1. Get a free API key from [Google AI Studio](https://aistudio.google.com/apikey).

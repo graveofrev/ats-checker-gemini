@@ -1,17 +1,21 @@
 import datetime
+import io
 import os
 
 from dotenv import load_dotenv
 
 load_dotenv()
 
+import docx
 import streamlit as st
 from google import genai
 from google.genai import types
 
 ## Part 1: Base configuration
 DEFAULT_MODEL = "gemini-2.5-flash"
-MAX_PDF_MB = 5
+MAX_FILE_MB = 5
+# Specialised models (speech, images, embeddings) that can't review a resume
+EXCLUDED_MODEL_WORDS = ("embedding", "tts", "image", "audio", "live", "robotics", "computer-use")
 # Limits keep a public demo from using up the owner's API quota
 MAX_RUNS_PER_SESSION = 10
 MAX_RUNS_PER_DAY = 100
@@ -55,14 +59,52 @@ def check_and_count_run():
     return None
 
 
-def get_gemini_response(prompt, pdf_bytes, job_description):
+@st.cache_data(ttl=3600)
+def get_available_models(api_key):
+    # Ask the API which Gemini models this key can use, so new releases show up without code changes
+    try:
+        models = get_client(api_key).models.list()
+        names = sorted(
+            (
+                m.name.removeprefix("models/")
+                for m in models
+                if "generateContent" in (m.supported_actions or [])
+                and "gemini" in m.name
+                and not any(word in m.name for word in EXCLUDED_MODEL_WORDS)
+            ),
+            reverse=True,
+        )
+    except Exception:
+        names = []
+    return names or [DEFAULT_MODEL]
+
+
+def get_resume_part(uploaded_file):
+    data = uploaded_file.getvalue()
+    name = uploaded_file.name.lower()
+    if name.endswith(".pdf"):
+        # The whole PDF is sent as a document, so every page is read
+        return types.Part.from_bytes(data=data, mime_type="application/pdf")
+    if name.endswith(".docx"):
+        document = docx.Document(io.BytesIO(data))
+        lines = [p.text for p in document.paragraphs]
+        # Many resumes lay out skills or dates in tables
+        for table in document.tables:
+            for row in table.rows:
+                lines.append(" | ".join(cell.text for cell in row.cells))
+        text = "\n".join(line for line in lines if line.strip())
+    else:
+        text = data.decode("utf-8", errors="replace")
+    return f"Resume:\n{text}"
+
+
+def get_gemini_response(prompt, model, resume_part, job_description):
     client = get_client(get_setting("GOOGLE_API_KEY"))
     response = client.models.generate_content(
-        model=get_setting("GEMINI_MODEL", DEFAULT_MODEL),
+        model=model,
         contents=[
             prompt,
-            # The whole PDF is sent as a document, so every page is read
-            types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf"),
+            resume_part,
             f"Job description:\n{job_description}",
         ],
         config=types.GenerateContentConfig(temperature=0.2),
@@ -78,11 +120,20 @@ if not get_setting("GOOGLE_API_KEY"):
     st.error("No API key found. Add GOOGLE_API_KEY to a .env file (see .env.example) or to your Streamlit secrets.")
     st.stop()
 
+models = get_available_models(get_setting("GOOGLE_API_KEY"))
+preferred_model = get_setting("GEMINI_MODEL", DEFAULT_MODEL)
+model = st.sidebar.selectbox(
+    "Gemini model",
+    models,
+    index=models.index(preferred_model) if preferred_model in models else 0,
+    help="Flash models are fast and have generous free limits. Pro models reason more carefully but have lower free limits.",
+)
+
 input_text = st.text_area("Job Description: ", key="input")
-uploaded_file = st.file_uploader("Upload your resume in PDF format.", type=["pdf"])
+uploaded_file = st.file_uploader("Upload your resume (PDF, Word or text).", type=["pdf", "docx", "txt"])
 
 if uploaded_file is not None:
-    st.write("PDF Uploaded Successfully")
+    st.write("Resume Uploaded Successfully")
 
 submit1 = st.button("Tell me about the resume.")
 
@@ -124,12 +175,12 @@ if selected_prompt:
         st.write("Please upload the resume.")
     elif not input_text.strip():
         st.write("Please paste the job description.")
-    elif uploaded_file.size > MAX_PDF_MB * 1024 * 1024:
-        st.write(f"Please upload a PDF smaller than {MAX_PDF_MB} MB.")
+    elif uploaded_file.size > MAX_FILE_MB * 1024 * 1024:
+        st.write(f"Please upload a file smaller than {MAX_FILE_MB} MB.")
     elif limit_message := check_and_count_run():
         st.write(limit_message)
     else:
         with st.spinner("Reading your resume..."):
-            response = get_gemini_response(selected_prompt, uploaded_file.getvalue(), input_text)
+            response = get_gemini_response(selected_prompt, model, get_resume_part(uploaded_file), input_text)
         st.subheader("Response: ")
         st.write(response)

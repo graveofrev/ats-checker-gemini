@@ -13,6 +13,6 @@ A handy app I created that uses Gemini to help create better CVs.
    ```bash
    python updated_app.py
    ```
-   Missing packages from `current_reqs.txt` are installed automatically on first run, and the app opens in your browser.
+   Missing packages from `requirements.txt` are installed automatically on first run, and the app opens in your browser.
 
 Never commit your `.env` file — it holds your personal API key.

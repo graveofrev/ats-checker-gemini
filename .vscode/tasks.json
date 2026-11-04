@@ -8,7 +8,7 @@
 			"args": [
 				"install",
 				"-r",
-				"current_reqs.txt"
+				"requirements.txt"
 			],
 			"options": {
 				"cwd": "${workspaceFolder}"

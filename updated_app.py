@@ -8,6 +8,7 @@ PyPDF2 allows for direct extraction of text from PDF files, which can be more ef
 PDF >> Text >> API >> Response
 '''
 
+
 ## Launcher: lets the app start with just `python updated_app.py`
 # Streamlit is already imported when it runs this script, so this block only fires on a plain `python` run.
 import sys
@@ -17,12 +18,27 @@ if "streamlit" not in sys.modules:
     import subprocess
 
     app_dir = os.path.dirname(os.path.abspath(__file__))
-    required = ["streamlit", "google.genai", "PyPDF2", "dotenv"]
+
+    # System-wide Pythons (e.g. Homebrew) refuse pip installs, so hop over to the project's own venv, creating it if needed
+    venv_dir = os.path.join(app_dir, "venv")
+    if sys.prefix == sys.base_prefix and os.path.realpath(sys.prefix) != os.path.realpath(venv_dir):
+        venv_python = os.path.join(venv_dir, "Scripts", "python.exe") if os.name == "nt" else os.path.join(venv_dir, "bin", "python")
+        if not os.path.exists(venv_python):
+            print("Creating virtual environment...")
+            subprocess.check_call([sys.executable, "-m", "venv", venv_dir])
+        sys.exit(subprocess.call([venv_python, os.path.abspath(__file__)] + sys.argv[1:]))
+
+    required =["streamlit", "google.genai", "PyPDF2", "dotenv"]
     if any(importlib.util.find_spec(m) is None for m in required):
         print("Installing required packages...")
         subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", os.path.join(app_dir, "current_reqs.txt")])
 
     sys.exit(subprocess.call([sys.executable, "-m", "streamlit", "run", os.path.abspath(__file__)] + sys.argv[1:]))
+
+
+#import subprocess
+#import sys
+#subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "current_reqs.txt"])
 
 import streamlit as st
 #import google.generativeai as genai
@@ -55,10 +71,9 @@ def input_pdf_text(pdf_file):
         text += page.extract_text()
     return text
 
-'''
-Alternative def function:
+#Alternative def function:
 
-def input_pdf_text(pdf_file):
+#def input_pdf_text(pdf_file):
     pdf_reader = pdf.PdfReader(pdf_file)
     text = ""
     for page in reader(len(reader.pages)):
@@ -66,7 +81,6 @@ def input_pdf_text(pdf_file):
         text += str(page.extract_text())
 
     return text
-'''
 
 ## Streamlit Application
 st.set_page_config(page_title="ATS Resume Expert")

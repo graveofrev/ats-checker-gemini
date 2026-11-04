@@ -8,9 +8,26 @@ PyPDF2 allows for direct extraction of text from PDF files, which can be more ef
 PDF >> Text >> API >> Response
 '''
 
+## Launcher: lets the app start with just `python updated_app.py`
+# Streamlit is already imported when it runs this script, so this block only fires on a plain `python` run.
+import sys
+if "streamlit" not in sys.modules:
+    import importlib.util
+    import os
+    import subprocess
+
+    app_dir = os.path.dirname(os.path.abspath(__file__))
+    required = ["streamlit", "google.genai", "PyPDF2", "dotenv"]
+    if any(importlib.util.find_spec(m) is None for m in required):
+        print("Installing required packages...")
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", os.path.join(app_dir, "current_reqs.txt")])
+
+    sys.exit(subprocess.call([sys.executable, "-m", "streamlit", "run", os.path.abspath(__file__)] + sys.argv[1:]))
+
 import streamlit as st
 #import google.generativeai as genai
 from google import genai
+from google.genai import types
 import os
 import PyPDF2 as pdf
 
@@ -18,18 +35,18 @@ from dotenv import load_dotenv
 
 load_dotenv() #load all environment variables from .env file
 
-genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+api_key = os.getenv("GOOGLE_API_KEY")
 
-## Gemini Pro Response
+## Gemini Response
 def get_gemini_response(prompt):
-    response = genai.chat.create(
-        model="gemini-pro",
-        messages=[
-            {"role": "system", "content": "You are an experienced recruitment and HR professional."},
-            {"role": "user", "content": prompt}
-        ]
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            system_instruction="You are an experienced recruitment and HR professional."
+        ),
     )
-    return response.last
+    return response.text
 
 def input_pdf_text(pdf_file):
     pdf_reader = pdf.PdfReader(pdf_file)
@@ -54,6 +71,12 @@ def input_pdf_text(pdf_file):
 ## Streamlit Application
 st.set_page_config(page_title="ATS Resume Expert")
 st.header("Let's help you get past the machine!")
+
+if not api_key:
+    st.error("No Gemini API key found. Copy `.env.example` to `.env` and add your key "
+             "(get one free at https://aistudio.google.com/apikey), then restart the app.")
+    st.stop()
+client = genai.Client(api_key=api_key)
 input_text = st.text_area("Job Description: ", key="input")
 uploaded_file = st.file_uploader("Upload your resume in PDF format", type=["pdf"])
 

@@ -1,7 +1,0 @@
-streamlit
-google-generativeai
-python-dotenv
-pdf2image
-
-base64
-io

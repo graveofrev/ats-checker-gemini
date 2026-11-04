@@ -9,7 +9,8 @@ PDF >> Text >> API >> Response
 '''
 
 import streamlit as st
-import google.generativeai as genai
+#import google.generativeai as genai
+from google import genai
 import os
 import PyPDF2 as pdf
 

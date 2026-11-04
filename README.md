@@ -92,3 +92,5 @@ See [TODO.md](TODO.md). The main one: the **"Tell me about the resume"** and **"
 ## License
 
 [MIT](LICENSE) © 2024 Revenant ([@graveofrev](https://github.com/graveofrev)).
+
+README written by Claude Code.
